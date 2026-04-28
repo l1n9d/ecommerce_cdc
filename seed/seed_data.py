@@ -1,5 +1,5 @@
 """
-Day 3: Seed initial e-commerce data into RDS Postgres.
+Seed initial e-commerce data into RDS Postgres.
 
 Generates realistic-looking data with Faker:
   ~1000 customers
