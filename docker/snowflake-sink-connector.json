@@ -1,0 +1,34 @@
+{
+  "name": "ecommerce-snowflake-sink",
+  "config": {
+    "connector.class": "com.snowflake.kafka.connector.SnowflakeSinkConnector",
+    "tasks.max": "1",
+
+    "topics": "ecommerce.public.customers,ecommerce.public.products,ecommerce.public.inventory,ecommerce.public.orders,ecommerce.public.order_items,ecommerce.public.shipments",
+
+    "snowflake.url.name": "${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com:443",
+    "snowflake.user.name": "${SNOWFLAKE_USER}",
+    "snowflake.private.key": "${SNOWFLAKE_PRIVATE_KEY}",
+    "snowflake.role.name": "${SNOWFLAKE_ROLE}",
+
+    "snowflake.database.name": "${SNOWFLAKE_DATABASE}",
+    "snowflake.schema.name": "${SNOWFLAKE_SCHEMA}",
+
+    "snowflake.ingestion.method": "SNOWPIPE_STREAMING",
+    "snowflake.enable.schematization": "false",
+
+    "snowflake.topic2table.map": "ecommerce.public.customers:CUSTOMERS_RAW,ecommerce.public.products:PRODUCTS_RAW,ecommerce.public.inventory:INVENTORY_RAW,ecommerce.public.orders:ORDERS_RAW,ecommerce.public.order_items:ORDER_ITEMS_RAW,ecommerce.public.shipments:SHIPMENTS_RAW",
+
+    "buffer.count.records": "500",
+    "buffer.flush.time": "10",
+    "buffer.size.bytes": "5000000",
+
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.storage.StringConverter",
+
+    "errors.tolerance": "all",
+    "errors.log.enable": "true",
+    "errors.deadletterqueue.topic.name": "snowflake-sink-dlq",
+    "errors.deadletterqueue.topic.replication.factor": "1"
+  }
+}
