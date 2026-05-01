@@ -13,3 +13,6 @@ __pycache__/
 
 # Mac
 .DS_Store
+
+.snowflake-keys/
+docker/custom-plugins/*.jar
