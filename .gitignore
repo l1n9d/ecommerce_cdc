@@ -15,4 +15,5 @@ __pycache__/
 .DS_Store
 
 .snowflake-keys/
-docker/custom-plugins/*.jar
+docker/custom-plugins/*.jar.snowflake-keys/
+*.p8

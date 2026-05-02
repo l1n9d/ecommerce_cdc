@@ -35,7 +35,7 @@ models:
     # We'll add staging/marts configs as we build them
     staging:
       +materialized: view       # staging models are lightweight - just views
-      +schema: staging          # land them in ECOMMERCE_CDC.STAGING
+      +schema: STAGING          # land them in ECOMMERCE_CDC.STAGING
     marts:
       +materialized: table      # marts are persistent tables for query performance
-      +schema: marts            # land them in ECOMMERCE_CDC.MARTS
+      +schema: MARTS            # land them in ECOMMERCE_CDC.MARTS
