@@ -1,0 +1,140 @@
+version: 2
+
+models:
+  - name: stg_customers_changes
+    description: "One row per CDC change event for customers."
+    columns:
+      - name: change_event_id
+        description: "Surrogate key: hash of customer_id + lsn"
+        tests: [unique, not_null]
+      - name: customer_id
+        description: "Postgres primary key"
+        tests: [not_null]
+      - name: op_type
+        description: "Debezium op code: r/c/u/d"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['r', 'c', 'u', 'd']
+      - name: lsn
+        tests: [not_null]
+
+  - name: stg_products_changes
+    description: "One row per CDC change event for products."
+    columns:
+      - name: change_event_id
+        tests: [unique, not_null]
+      - name: product_id
+        tests: [not_null]
+      - name: op_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['r', 'c', 'u', 'd']
+      - name: lsn
+        tests: [not_null]
+      - name: current_price
+        description: "Price at time of change event. Should never be negative."
+        tests:
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+
+  - name: stg_inventory_changes
+    description: "One row per CDC change event for inventory."
+    columns:
+      - name: change_event_id
+        tests: [unique, not_null]
+      - name: product_id
+        tests: [not_null]
+      - name: op_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['r', 'c', 'u', 'd']
+      - name: quantity_on_hand
+        description: "Stock level. Should never be negative."
+        tests:
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+
+  - name: stg_orders_changes
+    description: "One row per CDC change event for orders."
+    columns:
+      - name: change_event_id
+        tests: [unique, not_null]
+      - name: order_id
+        tests: [not_null]
+      - name: customer_id
+        tests: [not_null]
+      - name: op_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['r', 'c', 'u', 'd']
+      - name: order_status
+        description: "Order lifecycle status."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']
+      - name: order_total
+        tests:
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+
+  - name: stg_order_items_changes
+    description: "One row per CDC change event for order_items."
+    columns:
+      - name: change_event_id
+        tests: [unique, not_null]
+      - name: order_item_id
+        tests: [not_null]
+      - name: order_id
+        tests: [not_null]
+      - name: product_id
+        tests: [not_null]
+      - name: op_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['r', 'c', 'u', 'd']
+      - name: unit_price
+        description: "Price snapshot at time of order — point-in-time correctness."
+        tests:
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+      - name: quantity
+        tests:
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "> 0"
+
+  - name: stg_shipments_changes
+    description: "One row per CDC change event for shipments."
+    columns:
+      - name: change_event_id
+        tests: [unique, not_null]
+      - name: shipment_id
+        tests: [not_null]
+      - name: order_id
+        tests: [not_null]
+      - name: op_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['r', 'c', 'u', 'd']
+      - name: shipment_status
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['pending', 'in_transit', 'delivered']

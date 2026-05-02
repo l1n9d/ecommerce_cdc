@@ -1,0 +1,42 @@
+version: 2
+
+sources:
+  - name: raw_cdc
+    description: >
+      Raw CDC events from Postgres landed by the Snowflake Sink Connector.
+      Each table contains one row per Debezium change event with the original
+      payload as VARIANT JSON in RECORD_CONTENT.
+    database: ECOMMERCE_CDC
+    schema: RAW
+
+    config:
+      # Loaded freshness check — alerts if no new events arrive (would catch
+      # a Debezium connector failure, similar to the Day 6 storage incident).
+      loaded_at_field: TO_TIMESTAMP_LTZ(RECORD_METADATA:CreateTime::NUMBER / 1000)
+      freshness:
+        warn_after: { count: 30, period: minute }
+        error_after: { count: 2, period: hour }
+
+    tables:
+      - name: customers_raw
+        description: "CDC change events for customers - one row per Debezium event"
+        columns:
+          - name: RECORD_METADATA
+            description: "Kafka message metadata: topic, partition, offset, timestamp"
+          - name: RECORD_CONTENT
+            description: "Debezium change event payload as escaped JSON string"
+
+      - name: products_raw
+        description: "CDC change events for products"
+
+      - name: inventory_raw
+        description: "CDC change events for inventory levels"
+
+      - name: orders_raw
+        description: "CDC change events for orders"
+
+      - name: order_items_raw
+        description: "CDC change events for order line items"
+
+      - name: shipments_raw
+        description: "CDC change events for shipments"
