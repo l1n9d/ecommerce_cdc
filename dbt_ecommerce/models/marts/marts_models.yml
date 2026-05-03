@@ -1,0 +1,57 @@
+version: 2
+
+models:
+  - name: dim_customers
+    description: >
+      SCD Type 2 dimension for customers. One row per version of each
+      customer. Valid_from/valid_to define the lifetime of each version.
+      is_current marks the latest version per customer (false for deleted).
+    columns:
+      - name: customer_sk
+        description: "Surrogate key — hash of (customer_id, lsn). Unique per version."
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        description: "Natural key — Postgres primary key. Repeats across versions."
+        tests:
+          - not_null
+      - name: email
+        tests:
+          - not_null
+      - name: valid_from
+        tests:
+          - not_null
+      - name: is_current
+        tests:
+          - not_null
+
+  - name: dim_products
+    description: >
+      SCD Type 2 dimension for products. The price-history use case is the
+      headline value: enables fct_orders to join to "the version of the
+      product valid at time of order" rather than the current version.
+    columns:
+      - name: product_sk
+        description: "Surrogate key — hash of (product_id, lsn). Unique per version."
+        tests:
+          - unique
+          - not_null
+      - name: product_id
+        tests:
+          - not_null
+      - name: sku
+        tests:
+          - not_null
+      - name: current_price
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+      - name: valid_from
+        tests:
+          - not_null
+      - name: is_current
+        tests:
+          - not_null
