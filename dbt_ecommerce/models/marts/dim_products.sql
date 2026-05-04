@@ -1,12 +1,6 @@
 {{ config(materialized='table') }}
 
--- ============================================================
--- dim_products
---
--- SCD Type 2 dimension for products. Same pattern as dim_customers.
--- Most analytically valuable attribute: current_price -- this lets
--- analysts answer "what was the price at the time of the order?"
--- ============================================================
+-- Same valid_from fix as dim_customers — see comments there.
 
 WITH change_events AS (
     SELECT
@@ -14,6 +8,7 @@ WITH change_events AS (
         op_type,
         lsn,
         source_ts,
+        source_created_at,
         sku,
         name,
         category,
@@ -28,6 +23,10 @@ WITH change_events AS (
 versioned AS (
     SELECT
         *,
+        CASE
+            WHEN op_type = 'r' THEN source_created_at
+            ELSE source_ts
+        END AS effective_valid_from,
         LEAD(source_ts) OVER (
             PARTITION BY product_id
             ORDER BY lsn
@@ -51,9 +50,9 @@ SELECT
     v.current_price,
     v.weight_kg,
     v.is_active,
-    v.source_ts AS valid_from,
+    v.effective_valid_from AS valid_from,
     v.valid_to_raw AS valid_to,
-    CASE 
+    CASE
         WHEN v.valid_to_raw IS NULL AND d.product_id IS NULL THEN TRUE
         ELSE FALSE
     END AS is_current,

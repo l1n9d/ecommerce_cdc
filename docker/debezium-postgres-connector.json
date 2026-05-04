@@ -1,5 +1,5 @@
 {
-  "name": "ecommerce-postgres-source",
+  "name": "ecommerce-postgres-source-v2",
   "config": {
     "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
     "tasks.max": "1",
@@ -17,7 +17,7 @@
     "plugin.name": "pgoutput",
     "publication.name": "dbz_publication",
     "publication.autocreate.mode": "disabled",
-    "slot.name": "debezium_slot",
+    "slot.name": "debezium_slot_v2",
 
     "snapshot.mode": "initial",
 

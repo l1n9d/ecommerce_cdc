@@ -128,11 +128,16 @@ def seed_inventory(cur):
         FROM products;
     """)
 
+# REPLACE the existing seed_orders_and_items function in seed/seed_data.py. Key change: pull customer.created_at, constrain order's placed_at to be on or after that.
+
 def seed_orders_and_items(cur):
     print(f"Seeding {NUM_ORDERS} orders with line items...")
 
-    cur.execute("SELECT customer_id FROM customers")
-    customer_ids = [r[0] for r in cur.fetchall()]
+    # CHANGED: also pull created_at for each customer
+    cur.execute("SELECT customer_id, created_at FROM customers")
+    customer_rows = cur.fetchall()
+    customers_by_id = {row[0]: row[1] for row in customer_rows}
+    customer_ids = list(customers_by_id.keys())
 
     cur.execute("SELECT product_id, current_price FROM products WHERE is_active = TRUE")
     products = cur.fetchall()
@@ -142,6 +147,8 @@ def seed_orders_and_items(cur):
 
     for _ in range(NUM_ORDERS):
         customer_id = random.choice(customer_ids)
+        customer_created = customers_by_id[customer_id]
+
         # Shipping address often same as customer's, sometimes different
         if random.random() < 0.85:
             cur.execute("""
@@ -152,11 +159,18 @@ def seed_orders_and_items(cur):
             ship = (fake.street_address(), fake.city(), fake.state_abbr(), fake.zipcode())
 
         status = random.choices(ORDER_STATUSES, weights=ORDER_STATUS_WEIGHTS)[0]
-        placed_at = datetime.now(timezone.utc) - timedelta(
-            days=random.randint(0, 365),
-            hours=random.randint(0, 23),
-            minutes=random.randint(0, 59),
+
+        # CHANGED: constrain placed_at to be on or after customer's created_at.
+        # We pick a random instant between max(customer_created, 1 year ago) and now.
+        # This ensures every order is placed by an existing customer.
+        earliest_possible = max(
+            customer_created,
+            datetime.now(timezone.utc) - timedelta(days=365)
         )
+        latest_possible = datetime.now(timezone.utc)
+        # Random offset within the valid window
+        window_seconds = max(1, int((latest_possible - earliest_possible).total_seconds()))
+        placed_at = earliest_possible + timedelta(seconds=random.randint(0, window_seconds))
 
         # Choose 1-5 unique products for this order
         line_items = random.sample(products, k=random.randint(1, 5))
@@ -164,7 +178,6 @@ def seed_orders_and_items(cur):
         items_for_this_order = []
         for product_id, current_price in line_items:
             qty = random.randint(1, 4)
-            # Tiny price variance to simulate price drift since the order was placed
             unit_price = (Decimal(str(current_price)) * Decimal(str(random.uniform(0.95, 1.05)))).quantize(Decimal('0.01'))
             line_total = unit_price * qty
             order_total += line_total
@@ -176,7 +189,6 @@ def seed_orders_and_items(cur):
             ship[0], ship[1], ship[2], ship[3],
             placed_at, placed_at,
         ))
-        # We don't have order_ids yet, so stash items keyed by index for now
         item_rows.append(items_for_this_order)
 
     # Insert orders, get back generated IDs
@@ -189,7 +201,6 @@ def seed_orders_and_items(cur):
         RETURNING order_id
     """, order_rows, fetch=True)
 
-    # Now flatten items list with the actual order_ids
     flat_items = []
     for (order_id_tuple, items) in zip(inserted_ids, item_rows):
         order_id = order_id_tuple[0]

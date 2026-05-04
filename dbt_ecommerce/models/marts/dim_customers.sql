@@ -3,28 +3,27 @@
 -- ============================================================
 -- dim_customers
 --
--- SCD Type 2 dimension built from the customers CDC change stream.
--- One row per version of each customer. valid_from/valid_to/is_current
--- enable point-in-time correct joins from fact tables.
+-- SCD Type 2 dimension built from customers CDC change stream.
 --
--- DESIGN NOTES
--- - Built manually from CDC change stream (not dbt snapshot) because the
---   source is an event stream with explicit LSN ordering, not a polled
---   current-state table.
--- - LEAD over LSN gives deterministic ordering even for same-millisecond
---   updates -- LSN is globally unique and monotonic.
--- - Excludes 'd' (delete) op_type from versions; deletes mark the entity
---   as no-longer-current, handled via is_current flag on the prior version.
--- - Surrogate key is hash(customer_id, lsn) -- deterministic, joinable from facts.
+-- VALID_FROM SEMANTICS (important):
+-- For snapshot events (op_type = 'r'), valid_from uses source_created_at
+-- from the operational customers table. This represents when the row
+-- ACTUALLY started existing in the source system — not when CDC observed it.
+-- Without this fix, all snapshot rows would have valid_from = the moment
+-- CDC took its initial snapshot, breaking point-in-time joins for any
+-- fact rows older than CDC initialization.
+--
+-- For real change events (op_type in 'c', 'u'), valid_from = source_ts,
+-- which IS the moment the change happened in the source system.
 -- ============================================================
 
 WITH change_events AS (
-    -- Every change event for every customer, ordered chronologically
     SELECT
         customer_id,
         op_type,
         lsn,
         source_ts,
+        source_created_at,
         email,
         first_name,
         last_name,
@@ -35,14 +34,17 @@ WITH change_events AS (
         zip_code,
         country
     FROM {{ ref('stg_customers_changes') }}
-    -- Keep r/c/u (existence + updates). Deletes are handled below.
     WHERE op_type IN ('r', 'c', 'u')
 ),
 
 versioned AS (
-    -- For each customer, compute when each version was superseded
     SELECT
         *,
+        -- valid_from: when this row's state started in the source system
+        CASE
+            WHEN op_type = 'r' THEN source_created_at
+            ELSE source_ts
+        END AS effective_valid_from,
         LEAD(source_ts) OVER (
             PARTITION BY customer_id
             ORDER BY lsn
@@ -50,8 +52,6 @@ versioned AS (
     FROM change_events
 ),
 
--- Identify customers who have been deleted -- their last non-delete version 
--- should not be marked is_current
 deleted_customers AS (
     SELECT DISTINCT customer_id
     FROM {{ ref('stg_customers_changes') }}
@@ -59,13 +59,8 @@ deleted_customers AS (
 )
 
 SELECT
-    -- Surrogate key: unique per version of each customer
     {{ dbt_utils.generate_surrogate_key(['v.customer_id', 'v.lsn']) }} AS customer_sk,
-    
-    -- Natural key: stable across versions
     v.customer_id,
-    
-    -- Business attributes (current state at this version's lifetime)
     v.email,
     v.first_name,
     v.last_name,
@@ -75,21 +70,14 @@ SELECT
     v.state,
     v.zip_code,
     v.country,
-    
-    -- SCD2 contract columns
-    v.source_ts AS valid_from,
+    v.effective_valid_from AS valid_from,
     v.valid_to_raw AS valid_to,
-    -- A version is current if (a) it's the latest (no LEAD value) AND
-    -- (b) the customer hasn't been deleted entirely.
-    CASE 
+    CASE
         WHEN v.valid_to_raw IS NULL AND d.customer_id IS NULL THEN TRUE
         ELSE FALSE
     END AS is_current,
-    
-    -- Audit fields
     v.lsn AS source_lsn,
     CURRENT_TIMESTAMP() AS dbt_loaded_at
-    
 FROM versioned v
 LEFT JOIN deleted_customers d
     ON v.customer_id = d.customer_id
