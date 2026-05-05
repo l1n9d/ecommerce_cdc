@@ -5,6 +5,7 @@ A Change Data Capture pipeline that replicates an operational e-commerce Postgre
 ## Architecture
 
 ```mermaid
+%%{init: {'flowchart': {'rankSpacing': 50, 'nodeSpacing': 30}}}%%
 flowchart LR
     Sim["Python<br/>seed + simulator"]
     PG[("Postgres<br/>AWS RDS")]
