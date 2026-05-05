@@ -4,7 +4,33 @@ A Change Data Capture pipeline that replicates an operational e-commerce Postgre
 
 ## Architecture
 
-![Architecture diagram](docs/architecture.png)
+```mermaid
+flowchart LR
+    Sim["Python<br/>seed + simulator"]
+    PG[("Postgres<br/>AWS RDS")]
+    DBZ["Debezium 2.7<br/>(Kafka Connect)"]
+    KF[("Redpanda<br/>Kafka topics")]
+    SINK["Snowflake Sink<br/>(Snowpipe Streaming)"]
+    RAW[("Snowflake RAW<br/>VARIANT JSON")]
+    STG[("Snowflake STAGING<br/>typed change streams")]
+    MARTS[("Snowflake MARTS<br/>SCD2 dims + fact tables")]
+
+    Sim -->|writes| PG
+    PG -->|"WAL<br/>(logical replication,<br/>pgoutput plugin)"| DBZ
+    DBZ -->|"change events<br/>(JSON)"| KF
+    KF -->|"~10s buffer flush"| SINK
+    SINK -->|"row-set API"| RAW
+    RAW -->|"dbt views<br/>(parse VARIANT, dedup)"| STG
+    STG -->|"dbt tables<br/>(SCD2, point-in-time joins)"| MARTS
+
+    classDef storage fill:#e1f5ff,stroke:#0288d1,stroke-width:2px
+    classDef compute fill:#fff4e1,stroke:#f57c00,stroke-width:2px
+    classDef python fill:#f0f0f0,stroke:#666,stroke-width:1px
+    
+    class PG,KF,RAW,STG,MARTS storage
+    class DBZ,SINK compute
+    class Sim python
+```
 
 The data flow: synthetic e-commerce data lands in **Postgres on AWS RDS** (the operational source). **Debezium 2.7** reads Postgres's WAL via a logical replication slot and publishes change events to **Kafka topics** (Redpanda). **Kafka Connect** runs both the Debezium source connector and the **Snowflake Sink Connector**, which uses **Snowpipe Streaming** to land change events into Snowflake's `RAW` schema as VARIANT JSON. **dbt** transforms RAW events into staging views, then into SCD Type 2 dimensions and fact tables in `MARTS`, with point-in-time joins preserving historical correctness.
 
