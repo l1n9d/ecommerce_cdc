@@ -10,25 +10,28 @@ flowchart LR
     PG[("Postgres<br/>AWS RDS")]
     DBZ["Debezium 2.7<br/>(Kafka Connect)"]
     KF[("Redpanda<br/>Kafka topics")]
-    SINK["Snowflake Sink<br/>(Snowpipe Streaming)"]
     RAW[("Snowflake RAW<br/>VARIANT JSON")]
     STG[("Snowflake STAGING<br/>typed change streams")]
     MARTS[("Snowflake MARTS<br/>SCD2 dims + fact tables")]
 
+    %% Top row: ingest path, left to right
     Sim -->|writes| PG
-    PG -->|"WAL<br/>(logical replication,<br/>pgoutput plugin)"| DBZ
-    DBZ -->|"change events<br/>(JSON)"| KF
-    KF -->|"~10s buffer flush"| SINK
-    SINK -->|"row-set API"| RAW
-    RAW -->|"dbt views<br/>(parse VARIANT, dedup)"| STG
-    STG -->|"dbt tables<br/>(SCD2, point-in-time joins)"| MARTS
+    PG -->|"WAL via pgoutput"| DBZ
+    DBZ -->|"change events"| KF
 
-    classDef storage fill:#e1f5ff,stroke:#0288d1,stroke-width:2px
-    classDef compute fill:#fff4e1,stroke:#f57c00,stroke-width:2px
-    classDef python fill:#f0f0f0,stroke:#666,stroke-width:1px
+    %% Vertical drop into Snowflake
+    KF -->|"Snowpipe Streaming<br/>~10s latency"| RAW
+
+    %% Bottom row: dbt transformations, right to left
+    RAW -->|"dbt views<br/>parse + dedup"| STG
+    STG -->|"dbt tables<br/>SCD2 + PIT joins"| MARTS
+
+    classDef storage fill:#e1f5ff,stroke:#0288d1,stroke-width:2px,color:#000
+    classDef compute fill:#fff4e1,stroke:#f57c00,stroke-width:2px,color:#000
+    classDef python fill:#f0f0f0,stroke:#666,stroke-width:1px,color:#000
     
     class PG,KF,RAW,STG,MARTS storage
-    class DBZ,SINK compute
+    class DBZ compute
     class Sim python
 ```
 
