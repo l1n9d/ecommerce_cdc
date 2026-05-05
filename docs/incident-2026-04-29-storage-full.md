@@ -13,7 +13,20 @@
 
 ## Diagnosis
 Key query that confirmed the cause:
-[paste the pg_replication_slots query and result you ran]
+-- How big is database?
+SELECT pg_size_pretty(pg_database_size('ecommerce'));
+
+-- What's the WAL size and slot status? This is the diagnostic.
+SELECT 
+    slot_name,
+    active,
+    wal_status,
+    pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) AS retained_wal,
+    pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn)) AS unconsumed
+FROM pg_replication_slots;
+
+-- Free space remaining
+SELECT pg_size_pretty(pg_database_size('ecommerce')) AS db_size;
 
 Database size: 12 MB
 Total WAL written since project start: 71 GB
